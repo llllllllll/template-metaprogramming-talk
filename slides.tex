@@ -1,0 +1,274 @@
+\documentclass[table]{beamer}
+
+% Use metropolis theme
+\usepackage[progressbar=foot]{theme/beamerthememetropolis}
+\usepackage{amsmath}
+\usepackage{marvosym}
+\usepackage{xcolor}
+\usepackage{minted}
+
+\newcommand{\typetraits}{\texttt{<type\_traits>}}
+
+\title{Template Metaprogramming and \typetraits}
+
+\date{\today}
+\author{Joe Jevnik}
+\institute{Boston C++}
+
+\begin{document}
+\maketitle
+
+\begin{frame}
+  \begin{center}
+    \includegraphics[width=1.00\textwidth]{images/disclaimer.png}
+  \end{center}
+\end{frame}
+
+\begin{frame}{Outline}
+  \begin{enumerate}
+  \item Template types
+  \item Template functions
+  \item Advanced template concepts
+  \item Computation model of templates
+  \item Overview of \typetraits
+  \item Selected examples
+  \end{enumerate}
+\end{frame}
+
+\section{Template Types}
+
+\begin{frame}[fragile]{Template Types}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+class vec2d_int {
+private:
+    const int m_x;
+    const int m_y;
+
+public:
+    vec2d_int(int, int);
+    int x() const;
+    int y() const;
+    int dot(const vec2d_int&) const;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+class vec2d_float {
+private:
+    const float m_x;
+    const float m_y;
+
+public:
+    vec2d_float(float, float);
+    float x() const;
+    float y() const;
+    float dot(const vec2d_float&) const;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+class vec2d_double {
+private:
+    const double m_x;
+    const double m_y;
+
+public:
+    vec2d_double(double, double);
+    double x() const;
+    double y() const;
+    double dot(const vec2d_double&) const;
+};
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Template Types}
+  \begin{uncoverenv}<+->
+    \begin{minted}{c++}
+int vec2d_int::dot() {
+    return m_x * other.m_x + m_y * other.m_y;
+}
+    \end{minted}
+  \end{uncoverenv}
+
+  \begin{uncoverenv}<+->
+\begin{minted}{c++}
+float vec2d_float::dot() {
+    return m_x * other.m_x + m_y * other.m_y;
+}
+    \end{minted}
+  \end{uncoverenv}
+
+    \begin{uncoverenv}<+->
+\begin{minted}{c++}
+double vec2d_double::dot() {
+    return m_x * other.m_x + m_y * other.m_y;
+}
+    \end{minted}
+  \end{uncoverenv}
+\end{frame}
+
+\begin{frame}[fragile]{Template Types}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+class vec2d {
+private:
+    const T m_x;
+    const T m_y;
+
+public:
+    vec2d(const T&, const T&);
+    const T& x() const;
+    const T& y() const;
+    T dot(const vec2d&) const;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+T vec2d<T>::dot(const vec2d<T>& other) const {
+    return m_x * other.m_x + m_y * other.m_y;
+}
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+vec2d<int> int_vector(2, 4);
+vec2d<float> float_vector(2.5, 4.5);
+vec2d<double> double_vector(2.5, 4.5);
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+struct not_a_numeric_type {};
+
+vec2d<not_a_numeric_type> v(not_a_numeric_type{},
+                            not_a_numeric_type{});
+not_a_numeric_type dotted = v.dot(v);
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{verbatim}
+scratch.cc: In instantiation of
+    ‘T vec2d<T>::dot(const vec2d<T>&) const
+    [with T = not_a_numeric_type]’:
+scratch.cc:31:40:   required from here
+scratch.cc:21:20: error: no match for ‘operator*’
+    (operand types are
+     ‘const not_a_numeric_type’ and
+     ‘const not_a_numeric_type’)
+         return m_x * other.m_x + m_y * other.m_y;
+                ~~~~^~~~~~~~~~~
+    \end{verbatim}
+  \end{onlyenv}
+  
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+class z5 {
+private:
+    std::uint8_t m_value;
+
+public:
+    z5(int);
+    z5 operator+(const z5&) const;
+    z5 operator*(const z5&) const;
+};
+
+vec2d<z5> v(1, 2);
+z5 dotted = v.dot(v);
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Value Parameters}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+class vec3d {
+private:
+    const T m_x;
+    const T m_y;
+    const T m_z;
+
+public:
+    vec3d(const T&, const T&, const T&);
+    const T& x() const;
+    const T& y() const;
+    const T& z() const;
+    vec3d dot(const vec3d& other) const;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+class vec4d {
+private:
+    const T m_axis_0;
+    const T m_axis_1;
+    const T m_axis_2;
+    const T m_axis_3;
+
+public:
+    vec4d(const T&, const T&, const T&, const T&);
+    const T& axis_0() const;
+    // ...
+    vec4d dot(const vec4d& other) const;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+#include <array>
+
+template<typename T, std::size_t size>
+class vecnd {
+private:
+    std::array<T, size> m_data;
+
+public:
+    vecnd(const std::array<T, size>&>);
+    const T& operator[](std::size_t) const;
+    T dot(const vecnd&) const;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T, std::size_t size>
+T vecnd<T, size>::dot(const vecnd<T, size>& other) const {
+    T sum = 0;
+    for (std::size_t ix = 0; ix < size; ++ix) {
+        sum += (*this)[ix] * other[ix];
+    }
+    return sum;
+}
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+    vecnd<int, 4> v({1, 2, 3, 4});
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}{Thank You}
+  Questions?
+\end{frame}
+
+\end{document}

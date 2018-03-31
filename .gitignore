@@ -1,0 +1,13 @@
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+
+auto/*
+_minted-slides/*
+
+a.out
+scratch.cc
