@@ -18,20 +18,17 @@
 \begin{document}
 \maketitle
 
-\begin{frame}
-  \begin{center}
-    \includegraphics[width=1.00\textwidth]{images/disclaimer.png}
-  \end{center}
-\end{frame}
-
 \begin{frame}{Outline}
   \begin{enumerate}
   \item Template types
   \item Template functions
-  \item Advanced template concepts
+  \item Template variables
+  \item Template \texttt{using}
+  \item Parameter kinds
+  \item Advanced template usage
   \item Computation model of templates
   \item Overview of \typetraits
-  \item Selected examples
+  \item Extras
   \end{enumerate}
 \end{frame}
 
@@ -172,7 +169,7 @@ scratch.cc:21:20: error: no match for ‘operator*’
                 ~~~~^~~~~~~~~~~
     \end{verbatim}
   \end{onlyenv}
-  
+
   \begin{onlyenv}<+>
     \begin{minted}{c++}
 class z5 {
@@ -237,7 +234,7 @@ public:
 template<typename T, std::size_t size>
 class vecnd {
 private:
-    std::array<T, size> m_data;
+    const std::array<T, size> m_data;
 
 public:
     vecnd(const std::array<T, size>&>);
@@ -263,6 +260,1050 @@ T vecnd<T, size>::dot(const vecnd<T, size>& other) const {
   \begin{onlyenv}<+>
     \begin{minted}{c++}
     vecnd<int, 4> v({1, 2, 3, 4});
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\section{Template Functions}
+
+\begin{frame}[fragile]{Member Functions}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+vec2d<int> v(1, 2);
+vec2d<float> u(1.5, 2.5);
+int dotted = v.dot(u);
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{verbatim}
+scratch.cc:84:26: error: no matching function for
+    call to ‘vec2d<int>::dot(vec2d<float>&)’
+     int dotted = v.dot(u);
+                          ^
+scratch.cc:20:10: note: candidate:
+    T vec2d<T>::dot(const vec2d<T>&) const
+    [with T = int]
+     T dot(const vec2d& other) const {
+       ^~~
+scratch.cc:20:10: note:
+    no known conversion for argument 1 from
+    ‘vec2d<float>’ to ‘const vec2d<int>&’
+    \end{verbatim}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+class vec2d {
+private:
+    const T m_x;
+    const T m_y;
+
+public:
+    // ...
+
+    template<typename U>
+    T dot(const vec2d<U>& other) const {
+        return m_x * other.m_x + m_y * other.m_y;
+    }
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{verbatim}
+scratch.cc: In instantiation of
+    ‘T vec2d<T>::dot(const vec2d<U>&) const
+    [with U = float; T = int]’:
+scratch.cc:78:26:   required from here
+scratch.cc:16:28: error: ‘const float vec2d<float>::m_x’
+    is private within this context
+         return m_x * other.m_x + m_y * other.m_y;
+                      ~~~~~~^~~
+scratch.cc:6:13: note: declared private here
+     const T m_x;
+             ^~~
+    \end{verbatim}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename U>
+T dot(const vec2d<U>& other) const {
+    return m_x * other.x() + m_y * other.y();
+}
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{\texttt{auto}}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+vec2d<int> v(1, 2);
+vec2d<float> u(1.5, 2.5);
+int dotted = v.dot(u);  // 6
+float manual = 1 * 1.5 + 2 * 2.5;  // 6.5
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename U>
+auto dot(const vec2d<U>& other) const {
+    return m_x * other.x() + m_y * other.y();
+}
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+vec2d<int> v(1, 2);
+vec2d<float> u(1.5, 2.5);
+auto dotted = v.dot(u);  // 6.5 :: float
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Free Functions}
+  \begin{minted}{c++}
+template<typename T>
+std::string f(T) {
+    return "template function";
+}
+
+std::string f(long) {
+    return "non-template function";
+}
+
+f(0);  // template function
+f(0L);  // non-template function
+  \end{minted}
+\end{frame}
+
+\section{Template Variables}
+
+\begin{frame}[fragile]{Template Variables}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<int value>
+int half = value / 2;
+
+int a = half<4>;  // 2
+int b = half<5>;  // 2 (integer division)
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename Key, typename Value>
+std::map<Key, Value> cache;
+
+cache<int, float>[0] = 1.5;
+
+(std::addressof(cache<int, float>) ==
+ std::addressof(cache<int, float>))  // true
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\section{Template \texttt{using}}
+
+\begin{frame}[fragile]{Template \texttt{using}}
+\begin{minted}{c++}
+template<typename T>
+using const_ref = const T&;
+
+// const_ref<int> -> const int&
+// const_ref<const int> -> const int&
+// const_ref<const int&> -> const int&
+  \end{minted}
+\end{frame}
+
+\section{Parameter Kinds}
+
+\begin{frame}{Parameter Kinds}
+  \begin{itemize}
+  \item<+-> \texttt{typename} or \texttt{class}
+  \item<+-> fundamental integral types (\texttt{int}, \texttt{unsigned int},
+    etc.)
+  \item<+-> pointer types (static storage)
+  \item<+-> function values
+  \item<+-> \texttt{auto}
+  \item<+-> \texttt{template}*
+  \end{itemize}
+\end{frame}
+
+\section{Advanced Template Usage}
+
+\begin{frame}[fragile]{Explicit Template Specialization}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct s {
+    static std::string f() {
+        return "T = ?";
+    }
+};
+
+template<>
+struct s<int> {
+    static std::string f() {
+        return "T = int";
+    }
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+s<float>::f();  // T = ?
+s<void>::f();   // T = ?
+s<int>::f();    // T = int
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Incomplete Types}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct s;
+
+template<>
+struct s<int> {
+    static std::string f() { return "T = int"; }
+};
+
+template<>
+struct s<float> {
+    static std::string f() { return "T = float"; }
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+s<float>::f();  // T = float
+s<int>::f();    // T = int
+s<void>::f();   // error: incomplete type ‘s<void>’
+                // used in nested name specifier
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct s;
+
+template<>
+struct s<int> {
+    static std::string f() { return "T = int"; }
+};
+
+template<>
+struct s<float> {
+    static int g(int a) { return a + 1; }
+};
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Partial Template Specialization}
+    \begin{onlyenv}<+>
+\begin{minted}{c++}
+template<typename A, typename B>
+struct s {
+    static std::string f() { return "A = ? and B = ?"; }
+};
+
+template<typename A>
+struct s<A, int> {
+    static std::string f() { return "A = ? and B = int"; }
+};
+
+template<typename B>
+struct s<int, B> {
+    static std::string f() { return "A = int and B = ?"; }
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+s<float, float>::f();  // A = ? and B = ?
+s<float, int>::f();    // A = ? and B = int
+s<int, float>::f();    // A = int and B = ?
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+s<int, int>::f();
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{verbatim}
+scratch.cc:120:29: error: ambiguous template
+    instantiation for ‘struct s<int, int>’
+     std::cout << s<int, int>::f() << '\n';
+                             ^~
+scratch.cc:98:8: note: candidates are:
+    template<class A> struct s<A, int>
+    [with A = int]
+ struct s<A, int> {
+        ^~~~~~~~~
+scratch.cc:105:8: note:
+    template<class B> struct s<int, B>
+    [with B = int]
+ struct s<int, B> {
+        ^~~~~~~~~
+    \end{verbatim}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct s;
+
+template<typename ElementType>
+struct s<std::vector<ElementType>> {
+    using type = ElementType;
+};
+
+using a = std::vector<int>;
+using element_type = typename s<a>::type;  // int
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Variadic Templates}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}  
+using namespace std::string_literals;
+
+print_all("I typed", '<', '<', 100, " times today"s.);
+print_all("Never ", L"again.");
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+void print_all();
+
+template<typename A>
+void print_all(const A&);
+
+template<typename A, typename B>
+void print_all(const A&, const B&);
+
+template<typename A, typename B, typename C>
+void print_all(const A&, const B&, const C&);
+
+// ...
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+\begin{minted}{c++}
+void print_all();
+
+template<typename T, typename... Ts>
+void print_all(const T& first, const Ts&... rest);
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+\begin{minted}{c++}
+void print_all() {
+}
+
+template<typename T, typename... Ts>
+void print_all(const T& first, const Ts&... rest) {
+    std::cout << first;
+    print_all(rest...);
+}
+    \end{minted}
+  \end{onlyenv}  
+\end{frame}
+
+\begin{frame}[fragile]{Parameter Packs}
+  \begin{minted}{c++}
+template<typename... Ts>
+void f(Ts... args) {
+  \end{minted}
+
+  \begin{onlyenv}<1-7>
+    \begin{itemize}
+    \item[]<+->
+      \begin{minted}{c++}
+g(args...);  // g(args[0], args[1], ...)
+      \end{minted}
+    \item[]<+->
+      \begin{minted}{c++}
+g((1 + args)...);  // g(1 + args[0], 1 + args[1], ...)
+      \end{minted}
+    \item[]<+->
+      \begin{minted}{c++}
+g((args + 1)...);  // g(args[0] + 1, args[1] + 1, ...)
+      \end{minted}
+    \item[]<+->
+      \begin{minted}{c++}
+g(h(args)...);  // g(h(args[0]), h(args[1]), ...)
+      \end{minted}
+    \item[]<+->
+      \begin{minted}{c++}
+std::tuple<Ts...> t(args...);
+      \end{minted}
+    \item[]<+->
+      \begin{minted}{c++}
+using type = std::tuple<const Ts&...>;
+// type = std::tuple<const Ts[0]&, const Ts[1]&, ...>
+      \end{minted}
+    \item[]<+->
+      \begin{minted}{c++}
+using type = std::tuple<const_ref<Ts>...>;
+      \end{minted}
+    \end{itemize}
+  \end{onlyenv}
+
+  \begin{onlyenv}<8->
+    \begin{itemize}
+    \item[]<+->
+      \begin{minted}{c++}
+auto right_sum = (... + args); 
+// args[0] + (args[1] + (args[2] + ...))
+      \end{minted}    
+    \item[]<+->
+      \begin{minted}{c++}
+auto left_sum = (args + ...);
+// ((args[0] + args[1]) + args[2] + ...)
+      \end{minted}    
+    \item[]<+->
+      \begin{minted}{c++}
+auto right_sum_with_init = (1 + ... + args); 
+// 1 + (args[0] + (args[1] + (args[2] + ...)))
+      \end{minted}    
+    \item[]<+->
+      \begin{minted}{c++}
+auto left_sum_with_init = (args + ... + 1);
+// ((args[0] + args[1]) + args[2] + ... + 1)
+      \end{minted}    
+    \end{itemize}
+  \end{onlyenv}
+  
+  \begin{minted}{c++}
+}
+  \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Optional Definitions}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T, bool = (sizeof(T) > 8)>
+struct container {
+    static std::string f() { return "large T"; }
+};
+
+template<typename T>
+struct container<T, false> {
+    static std::string f() { return "small T"; }
+};
+
+container<int>::f();  // "small T"
+container<std::array<int, 10>>::f();  // "large T"
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{\texttt{decltype} and \texttt{std::declval}}
+  \begin{onlyenv}<1-3>
+    \begin{block}{\texttt{decltype}}
+      \begin{itemize}
+      \item[]<+-> keyword that returns the type of an expression
+      \item[]<+-> does not execute argument
+      \item[]<+->
+        \begin{minted}{c++}
+int a;
+using type_of_a = decltype(a);  // int
+  
+struct s { /* ... */ };
+using result = decltype(s.f(a));  // result of s.f(a)
+        \end{minted}
+      \end{itemize}
+    \end{block}
+  \end{onlyenv}
+
+  \begin{onlyenv}<4->
+    \begin{block}{\texttt{std::declval}}
+      \begin{itemize}
+      \item[]<+-> function (not keyword) that returns an instance of an
+        arbitrary type
+      \item[]<+-> may only be used in a \texttt{decltype}, cannot be executed
+      \item[]<+->
+        \begin{minted}{c++}
+struct s;
+using result = decltype(std::declval<s>() + 1); 
+// result of operator+(s, int)
+        \end{minted}
+      \end{itemize}
+    \end{block}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Capability Based Dispatching}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T, typename = void>
+struct s {
+    static auto f(const T&) { return 0; }
+};
+
+template<typename T>
+struct s<T, decltype(std::declval<const T>().f(), void())> {
+    static auto f(const T& ob) { return ob.f(); }
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+struct value {
+    int f() const { return 1; }
+};
+
+s<const char*>::f("no f() method");  // 0
+s<value>::f(value{});  // 1
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\section{Computation Model}
+
+\begin{frame}{Overview}
+  \begin{itemize}
+  \item<+-> functional paradigm
+  \item<+-> pure
+  \item<+-> evaluates to a C++ program without templates
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{C++ Templates vs. Haskell}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct element_type;
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{haskell}
+import Data.Map
+
+data CxxType = CxxInt
+             | CxxFloat
+             | CxxDouble
+             | CxxVector CxxType
+             | CxxCompleteStruct (Map String Member)
+             | CxxIncompleteStruct
+
+data Member = MemberType CxxType
+            | MemberFunction [CxxType]
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{haskell}
+data ElementTypeTemplate = ElementTypeTemplate CxxType
+
+element_type instantiation =
+    case instantiation of
+        ElementTypeTemplate _ -> CxxIncompleteStruct
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct element_type<std::vector<T>> {
+    using type = T;
+};
+    \end{minted}
+  \end{onlyenv}
+
+
+    \begin{onlyenv}<+>
+    \begin{minted}{haskell}
+data ElementTypeTemplate = ElementTypeTemplate CxxType
+
+element_type instantiation =
+    case instantiation of
+        ElementTypeTemplate (CxxVector t) ->
+            CxxCompleteStruct $ singleton
+                                  "type"
+                                  (MemberType t)
+        ElementTypeTemplate _ -> CxxIncompleteStruct
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Encoding Computation in Templates}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename A, typename B>
+struct eq {
+    static constexpr bool value = false;
+};
+
+template<typename A>
+struct eq<A, A> {
+    static constexpr bool value = true;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<auto head, typename Tail>
+struct cond;
+
+struct nil;
+
+using list = cond<1, cond<2, cond<3, nil>>>;
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<template<auto> typename F, typename List>
+struct map {
+    using type = nil;
+};
+
+template<template<auto> typename F,
+         auto head,
+         typename Tail>
+struct map<F, cons<head, Tail>> {
+    using type = cons<F<head>::value,
+                      typename map<F, Tail>::type>;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<auto v>
+struct f {
+    static constexpr auto value = v + 1;
+};
+
+static_assert(eq<typename map<f, list>::type,
+                 cons<2, cons<3, cons<4, nil>>>>::value);
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<template<auto> typename F, typename List>
+using eager_map = typename map<F, List>::type;
+
+static_assert(eq<typename map<f, list>::type,
+                 eager_map<f, list>>::value);
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Memoization}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}    
+template<std::size_t n>
+constexpr std::size_t fib = fib<n - 1> + fib<n - 2>;
+
+template<>
+constexpr std::size_t fib<0> = 1;
+
+template<>
+constexpr std::size_t fib<1> = 1;
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{verbatim}
+fib(n=0):  0.29 +- 0.008 seconds
+fib(n=1):  0.30 +- 0.003 seconds
+fib(n=2):  0.29 +- 0.002 seconds
+...
+fib(n=47): 0.30 +- 0.021 seconds
+fib(n=48): 0.30 +- 0.013 seconds
+fib(n=49): 0.29 +- 0.014 seconds
+    \end{verbatim}
+  \end{onlyenv}
+\end{frame}
+
+\section{\typetraits}
+
+\begin{frame}[fragile]{Integral Constant}
+  \begin{minted}{c++}
+template<typename T, T v>
+struct integral_constant {
+    using value_type = T;
+    static constexpr T value = v;
+};
+
+using false_type = integral_constant<bool, false>;
+using true_type = integral_constant<bool, true>;
+  \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Type Categories}
+  \begin{onlyenv}<+>
+    \begin{itemize}
+    \item \texttt{is\_void}
+    \item \texttt{is\_null\_pointer}
+    \item \texttt{is\_integral}
+    \item \texttt{is\_floating\_point}
+    \item \texttt{is\_array}
+    \item \texttt{is\_enum}
+    \item \texttt{is\_union}
+    \item \texttt{is\_class}
+    \item \texttt{is\_function}
+    \item \texttt{is\_pointer}
+    \item \texttt{is\_lvalue\_reference}
+    \item \texttt{is\_rvalue\_reference}
+    \item \texttt{is\_member\_object\_pointer}
+    \item \texttt{is\_member\_function\_pointer}
+    \end{itemize}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct is_array : public false_type {};
+
+template<typename T>
+struct is_array<T[]> : public true_type {};
+
+template<typename T, std::size_t n>
+struct is_array<T[n]> : public true_type {};
+
+template<typename T>
+struct is_pointer : public false_type {};
+
+template<typename T>
+struct is_pointer<T*> : public true_type {};
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}{Composite Types}
+  \begin{itemize}
+  \item \texttt{is\_fundamental}
+  \item \texttt{is\_arithmetic}
+  \item \texttt{is\_scalar}
+  \item \texttt{is\_object}
+  \item \texttt{is\_compound}
+  \item \texttt{is\_reference}
+  \item \texttt{is\_member\_pointer}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Type Properties}
+  \begin{onlyenv}<+>
+    \begin{itemize}
+    \item \texttt{is\_const}
+    \item \texttt{is\_volatile}
+    \item \texttt{is\_trivial}
+    \item \texttt{is\_trivially\_copyable}
+    \item \texttt{is\_standard\_layout}
+    \item \texttt{is\_pod}
+    \item \texttt{is\_literal\_type}
+    \item \texttt{has\_unique\_object\_representations}
+    \item \texttt{is\_empty}
+    \item \texttt{is\_polymorphic}
+    \item \texttt{is\_abstract}
+    \item \texttt{is\_final}
+    \item \texttt{is\_aggregate}
+    \item \ldots
+    \end{itemize}
+  \end{onlyenv}
+
+  \begin{onlyenv}<2->
+    \begin{itemize}
+    \item<+-> \texttt{has\_unique\_object\_representations}: No padding in a
+      struct.
+    \item<+-> \texttt{is\_empty}: No non-static members.
+    \item<+-> \texttt{is\_polymorphic}: Has at least one virtual.
+    \end{itemize}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}{Relationships}
+  \begin{itemize}
+  \item \texttt{is\_same}
+  \item \texttt{is\_base\_of}
+  \item \texttt{is\_convertible}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Manipulating Types}
+  \begin{onlyenv}<+>
+    \begin{itemize}
+    \item \texttt{remove\_cv}
+    \item \texttt{remove\_const}
+    \item \texttt{remove\_volatile}
+    \item \texttt{add\_cv}
+    \item \texttt{add\_const}
+    \item \texttt{add\_volatile}
+    \item \texttt{remove\_reference}
+    \item \texttt{add\_lvalue\_reference}
+    \item \texttt{add\_rvalue\_reference}
+    \item \texttt{add\_pointer}
+    \item \texttt{remove\_pointer}
+    \end{itemize}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+struct remove_const {
+    using type = T;
+};
+
+template<typename T>
+struct remove_const<const T> {
+    using type = T;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+\begin{minted}{c++}
+template<typename T>
+struct remove_reference {
+    using type = T;
+};
+
+template<typename T>
+struct remove_reference<T&> {
+    using type = T;
+};
+
+template<typename T>
+struct remove_reference<T&&> {
+    using type = T;
+};
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Shorthand Helpers}
+  \begin{minted}{c++}
+template<typename T>
+constexpr auto name_v = name<T>::value;
+
+template<typename T>
+using name_t = typename name<T>::type;
+  \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Conditionals}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+(predicate) ? if_true : if_false;
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<bool p, typename IfTrue, typename IfFalse>
+struct conditional {
+    using type = IfFalse;
+};
+
+template<typename IfTrue, typename IfFalse>
+struct conditional<true, IfTrue, IfFalse> {
+    using type = IfTrue;
+};
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Enable If}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<bool p, typename T = void>
+struct enable_if;
+
+template<typename T>
+struct enable_if<true, T> {
+    using type = T;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T,
+         typename = enable_if_t<!is_reference_v<T>>>
+struct optional {
+    // ...
+};
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{\texttt{void\_t}}
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+using void_t = void;
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T, typename = void>
+struct s {
+    static auto f(const T&) { return 0; }
+};
+
+template<typename T>
+struct s<T, void_t<decltype(std::declval<const T>().f())>> {
+    static auto f(const T& ob) { return ob.f(); }
+};
+    \end{minted}  
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Supported Operations}
+  \begin{onlyenv}<+>
+    \begin{itemize}
+    \item \texttt{is\_move\_constructible},
+      \texttt{is\_trivially\_move\_constructible},
+      \texttt{is\_nothrow\_move\_constructible}
+
+    \item \texttt{is\_move\_assignable},
+      \texttt{is\_trivially\_move\_assignable},
+      \texttt{is\_nothrow\_move\_assignable}
+
+    \item \texttt{is\_destructible}, \texttt{is\_trivially\_destructible},
+      \texttt{is\_nothrow\_destructible}
+
+    \item \texttt{has\_virtual\_destructor}
+
+    \item \ldots
+    \end{itemize}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+std::conditional_t<
+    !std::is_nothrow_move_constructible_v<T> &&
+    std::is_copy_constructible_v<T>,
+    const T&,
+    T&&>
+move_if_noexcept(T& ob) noexcept {
+    return ob;
+}
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename T>
+void vector<T>::push_back(const T& value) {
+    if (m_size == m_capacity) {
+        std::size_t new_capacity = m_capacity * 2;
+        auto buffer = std::make_unique<T[]>(new_capacity);
+
+        std::size_t ix = 0;
+        for (T& element : m_data) {
+            buffer[ix++] = move_if_noexcept(element);
+        }
+
+        m_data = std::move(buffer);
+        m_capacity = new_capacity;
+    }
+
+    // ...
+}
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\section{Extras}
+
+\begin{frame}[fragile]{\texttt{cond} and \texttt{case}}\
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<bool p, typename V>
+struct case_;
+
+template<typename... Cases>
+struct cond;
+    \end{minted}
+  \end{onlyenv}
+
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename V, typename... Cases>
+struct cond<case_<true, V>, Cases...> {
+    using type = V;
+};
+
+template<typename V, typename... Cases>
+struct cond<case_<false, V>, Cases...> {
+    using type = typename cond<Cases...>::type;
+};
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename A, typename B>
+struct align_dimensions {
+private:
+    struct base_case { using type = std::pair<A, B>; };
+
+public:
+    using type = typename utils::cond<
+        utils::case_<(wired::ndim<A> < wired::ndim<B>),
+                      align_dimensions<array<A>, B>>,
+        utils::case_<(wired::ndim<A> > wired::ndim<B>),
+                      align_dimensions<A, array<B>>>,
+        utils::case_<true, base_case>>::type;
+};
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
+\begin{frame}[fragile]{Debugging}\
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+template<typename>
+struct print_type;
+
+template<auto>
+struct print_value;
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+print_type<std::remove_reference_t<int&>>::p;
+// error: invalid use of incomplete type
+// ‘struct print_type<int>’
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<+>
+    \begin{minted}{c++}
+print_value<fib<35>>::p;
+// error: invalid use of incomplete type
+// ‘struct print_value<14930352>’
     \end{minted}
   \end{onlyenv}
 \end{frame}
